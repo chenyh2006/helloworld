@@ -30,7 +30,7 @@ jobs:
       - name: Default V2ray engine to NONE for SDK build
         run: |
           sed -i 's/\tdefault PACKAGE_$(PKG_NAME)_INCLUDE_Xray/\tdefault PACKAGE_$(PKG_NAME)_INCLUDE_NONE_V2RAY/' luci-app-ssr-plus/Makefile
-          grep -n "default PACKAGE_$(PKG_NAME)_INCLUDE" luci-app-ssr-plus/Makefile
+          grep -n 'default PACKAGE_\$(PKG_NAME)_INCLUDE' luci-app-ssr-plus/Makefile
 
       - name: Build
         uses: immortalwrt/gh-action-sdk@v7
