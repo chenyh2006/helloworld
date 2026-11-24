@@ -4,7 +4,12 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  # luci-app-ssr-plus: pure LuCI/Lua files (arch:all), no Go needed.
+  # SDK default V2ray engine is switched to NONE so the SDK does not try to
+  # compile xray-core (24.10 SDK ships Go 1.23; Xray 26.x needs Go >= 1.27).
+  # On the device, opkg resolves the Xray dependency from the installed
+  # xray-core ipk built by the job below.
+  luci-app:
     runs-on: ubuntu-latest
     steps:
       - name: Free Disk Space
@@ -22,6 +27,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Default V2ray engine to NONE for SDK build
+        run: |
+          sed -i 's/\tdefault PACKAGE_$(PKG_NAME)_INCLUDE_Xray/\tdefault PACKAGE_$(PKG_NAME)_INCLUDE_NONE_V2RAY/' luci-app-ssr-plus/Makefile
+          grep -n "default PACKAGE_$(PKG_NAME)_INCLUDE" luci-app-ssr-plus/Makefile
+
       - name: Build
         uses: immortalwrt/gh-action-sdk@v7
         env:
@@ -29,19 +39,79 @@ jobs:
           ARCH: aarch64_generic-openwrt-24.10.7
           FEEDNAME: packages_ci
           V: s
-          PACKAGES: luci-app-ssr-plus xray-core
+          PACKAGES: luci-app-ssr-plus
           NO_REFRESH_CHECK: true
 
       - name: Collect ipk
         run: |
           mkdir -p out
-          cp bin/packages/aarch64_generic/packages_ci/*.ipk out/ 2>/dev/null || true
-          find bin -name "*ssr-plus*.ipk" -exec cp {} out/ \; 2>/dev/null || true
+          cp bin/packages/aarch64_generic/packages_ci/luci-app-ssr-plus*.ipk out/ 2>/dev/null || \
+            find bin -name "*ssr-plus*.ipk" -exec cp {} out/ \;
           ls -la out/
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ssr-plus-aarch64
+          name: luci-app-ssr-plus
+          path: out/
+          if-no-files-found: error
+
+  # xray-core: build the static binary directly with Go 1.27 (matches
+  # Xray 26.x go.mod), then wrap it into an opkg ipk. No SDK, no EIP93/UPX.
+  xray-core:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Xray source
+        run: |
+          VER=26.11.9
+          curl -fL --retry 5 -o /tmp/xray.tar.gz \
+            "https://codeload.github.com/XTLS/Xray-core/tar.gz/v${VER}?"
+          echo "VER=${VER}" >> "$GITHUB_ENV"
+
+      - name: Set up Go 1.27
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.4'
+
+      - name: Build static arm64 binary
+        run: |
+          mkdir /tmp/build && tar -xzf /tmp/xray.tar.gz -C /tmp/build --strip-components=1
+          cd /tmp/build
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 \
+            go build -trimpath \
+              -ldflags "-s -w -X github.com/xtls/xray-core/core.build=OpenWrt -X github.com/xtls/xray-core/core.version=${VER}" \
+              -o /tmp/xray ./main
+          file /tmp/xray || true
+          /tmp/xray version || true
+
+      - name: Package ipk
+        run: |
+          VER=${VER}
+          REL=1
+          W=/tmp/ipk/xray-core
+          mkdir -p "$W/CONTROL" "$W/data/usr/bin"
+          install -m755 /tmp/xray "$W/data/usr/bin/xray"
+          cat > "$W/CONTROL/control" <<EOF
+          Package: xray-core
+          Version: ${VER}-${REL}
+          Depends: ca-bundle
+          Architecture: aarch64_generic
+          Maintainer: chenyh2006
+          Description: Xray-core v${VER} static arm64 build (no EIP93/UPX)
+          Section: net
+          EOF
+          mkdir -p /tmp/ipk/pkg
+          cp -r "$W/CONTROL" /tmp/ipk/pkg/
+          cp -r "$W/data" /tmp/ipk/pkg/
+          ( cd /tmp/ipk/pkg && tar --format=gnu -czf /tmp/control.tar.gz CONTROL && tar --format=gnu -czf /tmp/data.tar.gz data )
+          printf '2.0\n' > /tmp/debian-binary
+          mkdir -p out
+          ar -r out/xray-core_${VER}-${REL}_aarch64_generic.ipk /tmp/debian-binary /tmp/control.tar.gz /tmp/data.tar.gz
+          ls -la out/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: xray-core
           path: out/
           if-no-files-found: error
