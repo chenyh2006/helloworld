@@ -25,6 +25,7 @@ jobs:
       - name: Build
         uses: immortalwrt/gh-action-sdk@v7
         env:
+          CONTAINER: immortalwrt/sdk:aarch64_generic-openwrt-24.10.7
           ARCH: aarch64_generic
           FEEDNAME: packages_ci
           V: s
