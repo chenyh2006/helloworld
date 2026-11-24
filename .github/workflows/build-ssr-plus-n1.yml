@@ -1,0 +1,45 @@
+name: Build ssr-plus for N1 (aarch64_generic)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Free Disk Space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build
+        uses: immortalwrt/gh-action-sdk@v7
+        env:
+          ARCH: aarch64_generic
+          FEEDNAME: packages_ci
+          V: s
+          PACKAGES: luci-app-ssr-plus
+
+      - name: Collect ipk
+        run: |
+          mkdir -p out
+          cp bin/packages/aarch64_generic/packages_ci/*.ipk out/ 2>/dev/null || true
+          find bin -name "*ssr-plus*.ipk" -exec cp {} out/ \; 2>/dev/null || true
+          ls -la out/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ssr-plus-aarch64
+          path: out/
+          if-no-files-found: error
