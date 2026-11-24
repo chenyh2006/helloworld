@@ -25,8 +25,8 @@ jobs:
       - name: Build
         uses: immortalwrt/gh-action-sdk@v7
         env:
-          CONTAINER: immortalwrt/sdk:aarch64_generic-openwrt-24.10.7
-          ARCH: aarch64_generic
+          CONTAINER: immortalwrt/sdk
+          ARCH: aarch64_generic-openwrt-24.10.7
           FEEDNAME: packages_ci
           V: s
           PACKAGES: luci-app-ssr-plus xray-core
