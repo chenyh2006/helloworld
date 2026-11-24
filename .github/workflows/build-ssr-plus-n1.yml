@@ -28,7 +28,7 @@ jobs:
           ARCH: aarch64_generic
           FEEDNAME: packages_ci
           V: s
-          PACKAGES: luci-app-ssr-plus
+          PACKAGES: luci-app-ssr-plus xray-core
 
       - name: Collect ipk
         run: |
