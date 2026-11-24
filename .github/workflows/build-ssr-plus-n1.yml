@@ -29,6 +29,7 @@ jobs:
           FEEDNAME: packages_ci
           V: s
           PACKAGES: luci-app-ssr-plus xray-core
+          NO_REFRESH: true
 
       - name: Collect ipk
         run: |
